@@ -10,7 +10,7 @@ import os
 app = Flask(__name__)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config["SQLALCHEMY_DATABASE_URI"]='postgres://oojljwnacpmbjj:059746fecae61587431ba4418115ad3c0099f53c2dcd227324e0dd34d3b56779@ec2-54-156-73-147.compute-1.amazonaws.com:5432/dbkk2qv369q38m'
+app.config["SQLALCHEMY_DATABASE_URI"]='postgres://ghzjwktpsdrtmt:068b66b7d6c673626d92d090c4ecb7fc1ee73c28f7e49f5774b2589ef1ce4018@ec2-52-21-247-176.compute-1.amazonaws.com:5432/dcl0tk6vat7cuc'
 
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
@@ -31,21 +31,21 @@ class User(db.Model):
 
 class UserSchema(ma.Schema):
     class Meta:
-        feilds=("id", "email", "password")
+        fields=("id", "email", "password")
 
 user_schema = UserSchema()
 multiple_user_schema = UserSchema(many=True)
 
 class Journal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    person = db.Column(db.String, nullable=True)
+    people = db.Column(db.String, nullable=True)
     title = db.Column(db.String, nullable=True)
     description = db.Column(db.String, nullable=False, unique=True)
-    date = db.Column(db.Integer, nullable=False)
+    date = db.Column(db.String, nullable=False)
     location = db.Column(db.String, nullable=True)
 
-    def __init__(self, person, title, description, date, location):
-        self.person = person
+    def __init__(self, people, title, description, date, location):
+        self.people = people
         self.title = title
         self.description = description
         self.date = date
@@ -53,7 +53,7 @@ class Journal(db.Model):
 
 class JournalSchema(ma.Schema):
     class Meta: 
-        feilds = ("id", "person", "title", "description", "date", "location")
+        feilds = ("id", "people", "title", "description", "date", "location")
 
 journal_schema = JournalSchema()
 multiple_journal_schema = JournalSchema(many=True)      
@@ -67,9 +67,9 @@ def create_user():
     email = post_data.get("email")
     password = post_data.get("password")
 
-    # password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
+    password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
 
-    record = User(email, password)
+    record = User(email, password_hash)
     db.session.add(record)
     db.session.commit()
 
@@ -78,54 +78,36 @@ def create_user():
 @app.route("/journal/add", methods=["POST"])
 def create_journal():
     if request.content_type !="application/json":
-        return "YOU NEED JSON!!!"
+        return "JSON required"
 
     post_data = request.get_json()
-    person = post_data.get("person")
+    people = post_data.get("people")
     title = post_data.get("title")
     description = post_data.get("description")
     date = post_data.get("date")
     location = post_data.get("location")
 
-    record = Journal(person, title, description, date, location)
+    record = Journal(people, title, description, date, location)
     db.session.add(record)
     db.session.commit()
 
     return jsonify("Data added successfully")
 
-@app.route("/journal/get/marshmallow", methods=["GET"])
-def get_all_journal_marshmallow():
-    all_journals = db.session.query(Journal).all()
-    return jsonify(multiple_journal_schema.dump(all_books))
-
-@app.route("/journal/get/marshmallow/<id>", methods=["GET"])
-def get_one_journal_marshmallow(id):
-    one_journal_schema ={}
-    one_journal_schema["id"] = one_journal.id
-    one_journal_schema["person"] = one_journal.person
-    one_journal_schema["title"] = one_journal.title
-    one_journal_schema["description"] = one_journal.description
-    one_journal_schema["date"] = one_journal.date
-    one_journal_schema["location"] = one_journal.location
-    
-    return jsonify(journal_schema.dump(one_journal))
-
-
 @app.route("/user/get", methods=["GET"])
 def get_all_users():
-    all_users = db.session.query(User).all()
-    return jsonify(multiple_users_schema.dump(all_users))
+    all_users = db.session.query(User.email, User.password).all()
+    return jsonify(multiple_user_schema.dump(all_users))
 
 
-@app.route("/user/get/<id>", methods=["GET"])
-def get_one_user(id):
-    one_user = db.session.query(User).fiter(User.id == id).first()
+@app.route("/user/get/<email>", methods=["GET"])
+def get_one_user(email):
+    one_user = db.session.query(User).filter(User.email == email).first()
     return jsonify(user_schema.dump(one_user))
 
-@app.route("/user/journal/<user_id>/<journal_id>", methods=["GET"])
-def get_one_users_journal(user_id, journal_id):
-    user = db.session.query(User).filter(User.id == user_id).first()
-    journal = db.session.query(Journal).filter(Journal.id == journal_id).first()
+@app.route("/user/journal/<email>/<journal_title>", methods=["GET"])
+def get_one_users_journal(email, journal_title):
+    user = db.session.query(User).filter(User.email == user_email).first()
+    journal = db.session.query(Journal).filter(Journal.title == journal_title).first()
     result = [user_schema.dump(user), journal_schema.dump(journal)]
     return jsonify(result)
 
@@ -137,19 +119,37 @@ def delete_user_journal_by_id(id):
 
 @app.route("/journal/get", methods=["GET"])
 def get_all_journals():
-    all_books = db.session.query(Journal.id, Journal.person, Journal.title, Journal.description, Journal.date, Journal.location).all()
+    all_books = db.session.query(Journal.id, Journal.people, Journal.title, Journal.description, Journal.date, Journal.location).all()
     return jsonify(all_books)
 
-# @app.route("/user/delete/<journal>", methods=["DELETE"])
-# def delete_user_journal_by_id(id):
-#     record = db.session.query(Journal).filter(User.journal == journal).first()
-#     if record is None:
-#         return jsonify("Journal does not exist")
+@app.route("/journal/delete/<id>", methods=["DELETE"])
+def delete_journal(id):
+    one_journal = db.session.query(Journal).filter(Journal.id == id).first()
+    db.session.delete(one_journal)
+    db.session.commit()
+    return jsonify(f"Journal was deleted")
 
-#     db.session.delete(record)
-#     db.session.commit()
-#     return jsonify("Journal was successfully deleted")
 
+@app.route("/user/authentication", methods=["POST"])
+def user_authentication():
+    if request.content_type != "application/json":
+        return "Error: Data must be sent as JSON."
+
+    post_data = request.get_json()
+    email = post_data.get("email")
+    password = post_data.get("password")
+
+    user = db.session.query(User).filter(User.email == email).first()
+
+    if email is None:
+        return jsonify("Invalid Credentials")
+
+    if bcrypt.check_password_hash(user.password, password) != True:
+        return jsonify("Invalid Credentials")
+
+    return {
+        "status": "logged_in"
+    }
 
 
 if __name__ == "__main__":
