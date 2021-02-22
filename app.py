@@ -43,6 +43,7 @@ class Journal(db.Model):
     description = db.Column(db.String, nullable=False, unique=True)
     date = db.Column(db.String, nullable=False)
     location = db.Column(db.String, nullable=True)
+    email = db.Column(db.String, nullable=False)
 
     def __init__(self, people, title, description, date, location):
         self.people = people
@@ -50,10 +51,11 @@ class Journal(db.Model):
         self.description = description
         self.date = date
         self.location = location
+        self.email = email
 
 class JournalSchema(ma.Schema):
     class Meta: 
-        feilds = ("id", "people", "title", "description", "date", "location")
+        feilds = ("id", "people", "title", "description", "date", "location", "email")
 
 journal_schema = JournalSchema()
 multiple_journal_schema = JournalSchema(many=True)      
@@ -103,6 +105,11 @@ def get_all_users():
 def get_one_user(email):
     one_user = db.session.query(User).filter(User.email == email).first()
     return jsonify(user_schema.dump(one_user))
+
+@app.route("/journal/get/<email>", methods=["GET"])
+def get_users_entries(email):
+    entries = db.session.query(Journal).filter(Journal.email == email).all()
+    return jsonify(multiple_journal_schema.dump(entries))
 
 @app.route("/user/journal/<email>/<journal_title>", methods=["GET"])
 def get_one_users_journal(email, journal_title):
